@@ -5,14 +5,20 @@ The goal is **not** to generate answers, but to surface the best-matching text c
 
 ---
 
-## Project Overview
+## Pipeline Overview
 
 An end-to-end **semantic retrieval pipeline** is implemented, including:
-- extracting the AI Act text from a PDF and cleaning it
-- splitting the document into **chunks** suitable for retrieval
-- embedding all chunks and indexing them into a vector store (separate index per model)
-- querying the index with user questions and returning the **top-k most relevant chunks**
-- benchmarking retrieval quality using **Hit@k** and **MRR**
+
+```mermaid
+flowchart LR
+    A[AI Act PDF] --> B[Text Extraction & Cleaning]
+    B --> C[Chunking]
+    C --> D[Embeddings]
+    D --> E[Vector Store (ChromaDB)]
+    Q[User Query] --> D
+    Q --> E
+    E --> F[Top-k Relevant Chunks]
+
 
 ---
 
