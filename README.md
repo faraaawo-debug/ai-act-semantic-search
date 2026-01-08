@@ -9,10 +9,10 @@ The goal is **not** to generate answers, but to surface the best-matching text c
 
 ```mermaid
 flowchart LR
-    A[AI Act PDF] --> B[Text Extraction & Cleaning]
+    A[AI Act PDF] --> B[Text Extraction and Cleaning]
     B --> C[Chunking]
     C --> D[Embeddings]
-    D --> E[Vector Store (ChromaDB)]
+    D --> E[Vector Store - ChromaDB]
     Q[User Query] --> D
     Q --> E
     E --> F[Top-k Relevant Chunks]
