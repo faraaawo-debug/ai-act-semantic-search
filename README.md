@@ -7,9 +7,7 @@ The goal is **not** to generate answers, but to surface the best-matching text c
 
 ## Pipeline Overview
 
-An end-to-end **semantic retrieval pipeline** is implemented, including:
-
-```mermaid
+'''mermaid
 flowchart LR
     A[AI Act PDF] --> B[Text Extraction & Cleaning]
     B --> C[Chunking]
