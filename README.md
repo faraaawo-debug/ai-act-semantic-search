@@ -7,7 +7,7 @@ The goal is **not** to generate answers, but to surface the best-matching text c
 
 ## Pipeline Overview
 
-'''mermaid
+```mermaid
 flowchart LR
     A[AI Act PDF] --> B[Text Extraction & Cleaning]
     B --> C[Chunking]
@@ -16,7 +16,7 @@ flowchart LR
     Q[User Query] --> D
     Q --> E
     E --> F[Top-k Relevant Chunks]
-
+```
 
 ---
 
