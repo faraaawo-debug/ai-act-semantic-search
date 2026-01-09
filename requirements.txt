@@ -1,0 +1,6 @@
+sentence-transformers
+chromadb
+numpy
+pandas
+scikit-learn
+pdfplumber
