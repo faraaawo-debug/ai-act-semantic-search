@@ -23,7 +23,11 @@ flowchart LR
 
 ##  Dataset (AI Act document)
 
-Source: official **EU AI Act** text (PDF).  
+Source: official **EU AI Act** text (PDF) (144 pages)
+
+The document is a long, unstructured legal text composed of multiple articles, chapters, and recitals.  
+It contains formal regulatory language with complex sentence structures.
+
 Preprocessing included:
 - text extraction and normalization (PDF artifacts, whitespace)
 - segmentation into smaller **overlapping chunks** to preserve legal context
