@@ -1,0 +1,15 @@
+# Source document (download it from EUR-Lex, see README)
+*.pdf
+
+# Local ChromaDB vector store created by the notebook
+chroma_store/
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environments and secrets
+.venv/
+venv/
+.env
