@@ -1,84 +1,122 @@
 # AI Act Semantic Search
 
-Semantic search system to retrieve the most relevant passages of the **European AI Act** from a user query.  
-The goal is **not** to generate answers, but to surface the best-matching text chunks to help navigate a long legal document.
+Semantic search over the **European AI Act** (Regulation (EU) 2024/1689): given a question, the system returns the most relevant passages of the regulation, each labelled with its article number.
+It does **not** generate answers: it is the retrieval step of a potential RAG pipeline, evaluated on its own.
+
+**Language:** the indexed document is the **French** version of the AI Act, and the evaluation questions are written **in French**.
+
+Everything lives in one notebook: [`AI Act Assistant.ipynb`](AI%20Act%20Assistant.ipynb).
 
 ---
 
-## Pipeline Overview
+## Pipeline
 
 ```mermaid
 flowchart LR
-    A[AI Act PDF] --> B[Text Extraction and Cleaning]
-    B --> C[Chunking]
-    C --> D[Embeddings]
-    D --> E[Vector Store - ChromaDB]
-    Q[User Query] --> D
-    Q --> E
-    E --> F[Top-k Relevant Chunks]
+    A[AI Act PDF - French] --> B[Text extraction - pdfplumber]
+    B --> C[Split by article, then sentence-based chunks]
+    C --> D[Embeddings - Sentence-Transformers]
+    D --> E[Vector store - ChromaDB]
+    Q[User query] --> D
+    E --> F[Top-k chunks with article labels]
 ```
 
+1. **Extraction**: text is extracted page by page with `pdfplumber` (144 pages); runs of spaces and tabs are collapsed.
+2. **Chunking**: the text is split into articles with a regex on lines of the form `Article <number>` (112 articles found), then each article is split on sentence boundaries into chunks of about 600 characters (704 chunks). Chunks do not overlap. Each chunk keeps its article label.
+3. **Indexing**: each embedding model gets its own ChromaDB collection.
+4. **Retrieval**: the query is embedded with the same model and the top-k nearest chunks are returned.
+
+## Models compared
+
+| Model | Hugging Face id | Notes |
+|---|---|---|
+| MiniLM | `sentence-transformers/all-MiniLM-L6-v2` | Small, trained for English |
+| MPNet | `sentence-transformers/paraphrase-multilingual-mpnet-base-v2` | Larger, multilingual |
+
+## Evaluation
+
+- **Dataset**: 37 French questions written by hand, each labelled with the expected article number(s) (Q4 to Q40 in the notebook; 36 questions have one expected article, one has two).
+- **Hit@k**: share of questions for which at least one expected article appears in the top-k chunks.
+- **MRR@k**: mean over all questions of 1 / rank of the first correct chunk in the top k (0 if none). It is averaged over all 37 questions, misses included.
+
+## Results
+
+Produced by running the notebook top to bottom (fresh kernel, versions in `requirements.txt`):
+
+| Model | Hit@1 | Hit@3 | Hit@5 | MRR@3 | MRR@5 |
+|---|---:|---:|---:|---:|---:|
+| MiniLM (`all-MiniLM-L6-v2`) | 29.7% (11/37) | 40.5% (15/37) | 48.6% (18/37) | 0.342 | 0.363 |
+| MPNet (`paraphrase-multilingual-mpnet-base-v2`) | 51.4% (19/37) | 73.0% (27/37) | 75.7% (28/37) | 0.604 | 0.610 |
+
+MRR@1 is identical to Hit@1 by definition, so it is not reported separately.
+
+On this French corpus, MPNet finds the expected article much more often than MiniLM (75.7% vs 48.6% at k=5), which is expected since MiniLM is an English model. When the article is found in the top 5, both models tend to rank it high (MRR@5 / Hit@5 ≈ 0.81 for MPNet, ≈ 0.75 for MiniLM). For MPNet, most of the gain is reached at k=3.
+
+With only 37 questions, one question is worth 2.7 points: differences of a few points are not meaningful.
 
 ---
 
-##  Dataset (AI Act document)
+## How to run
 
-Source: official **EU AI Act** text (PDF) (144 pages)
+Tested with Python 3.12 on Windows (CPU).
 
-The document is a long, unstructured legal text composed of multiple articles, chapters, and recitals.  
-It contains formal regulatory language with complex sentence structures.
+1. **Clone the repository and install the dependencies**
 
-Preprocessing included:
-- text extraction and normalization (PDF artifacts, whitespace)
-- segmentation into smaller **overlapping chunks** to preserve legal context
-- metadata tracking (e.g., article number) for traceability
+   ```bash
+   git clone https://github.com/faraaawo-debug/ai-act-semantic-search.git
+   cd ai-act-semantic-search
+   python -m venv .venv
+   # Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
+   pip install -r requirements.txt jupyter
+   ```
 
----
+2. **Download the AI Act PDF** (it is not included in the repository)
 
-##  Methods & Technical Approach
+   Download the official French PDF from EUR-Lex:
+   https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=OJ:L_202401689
+   (document page: https://eur-lex.europa.eu/eli/reg/2024/1689/oj)
 
-### 1) Chunking + Indexing
-The AI Act is split into chunks, then embedded and stored in a vector database.  
-Each embedding model is indexed in its **own ChromaDB collection** to ensure fair comparison.
+   Save it as `OJ_L_202401689_FR_TXT.pdf` in the repository root, next to the notebook.
 
-### 2) Embedding models compared
+3. **Run the notebook**
 
-Two Sentence-Transformers embedding models are compared:
+   ```bash
+   jupyter notebook "AI Act Assistant.ipynb"
+   ```
 
-- **MiniLM (Small/EN)**: `all-MiniLM-L6-v2`  
-  Lightweight model optimized for speed and general English semantic similarity.
+   Then run all cells in order. The first run downloads both models from Hugging Face (roughly 1 GB in total, mostly MPNet). The notebook creates a local `chroma_store/` folder (ignored by git).
 
-- **MPNet (Medium/Multi)**: `paraphrase-multilingual-mpnet-base-v2`  
-  Larger multilingual model that captures deeper semantics and performs better on formal/legal phrasing.
-
-Retrieval uses **cosine similarity** to rank chunks by relevance.
-
-### 3) Evaluation protocol (Hit@k + MRR)
-A small evaluation set was manually defined: each question is associated with the expected article(s).
-- **Hit@k**: success if at least one expected article appears in the top-k retrieved results
-- **MRR**: rewards systems that rank the correct article as close to rank #1 as possible
+No API key is needed: all models run locally.
 
 ---
 
-## 📈 Results (Retrieval Benchmark)
+## Limitations
 
-| Model | Hit@1 | MRR@1 | Hit@3 | MRR@3 | Hit@5 | MRR@5 |
-|------|------:|------:|------:|------:|------:|------:|
-| MiniLM (`all-MiniLM-L6-v2`) | 29.7% | 0.297 | 40.5% | 0.342 | 48.6% | 0.363 |
-| MPNet (`paraphrase-multilingual-mpnet-base-v2`) | 51.4% | 0.514 | 73.0% | 0.604 | 75.7% | 0.610 |
+These were measured on the current code; they are known issues, not fixed yet.
 
->> MPNet clearly outperforms MiniLM on both Hit@k and MRR, meaning the correct legal articles are retrieved **more often** and **ranked higher**.
+- **43% of the text is not indexed.** Only text after the first matched `Article <number>` line is kept. The French text starts with "Article premier", which the regex does not match, so the recitals and Article 1 (288,835 of 672,718 characters) are dropped.
+- **Annexes are labelled as Article 113.** Everything after the last article (the annexes) is attached to Article 113, which becomes 53,043 characters long (about 900 of them are the article itself).
+- **Chunk size is not enforced.** Chunks are only split after a period, so long enumerations separated by semicolons stay whole: 89 of the 704 chunks exceed 600 characters (the longest has 19,189).
+- **Chunks are truncated by the models.** Text beyond the model's maximum input length is ignored when embedding: MiniLM (256 tokens) truncates 49 chunks, MPNet (128 tokens) truncates 257 chunks, including 88 of the 89 long ones.
+- **No overlap between chunks**, so a sentence split across two chunks loses its context.
+- **PDF page headers and footers remain in the text** (e.g. `ELI: http://data.europa.eu/eli/reg/2024/1689/oj 51/144`, `JO L du 12.7.2024`): they appear in 105 chunks.
+- **The benchmark is not a true cosine similarity.** ChromaDB uses L2 distance by default. In the benchmark, MPNet embeddings are not normalized (mean norm ≈ 2.6), so ranking is by L2 distance rather than cosine. MiniLM normalizes its own outputs, so for MiniLM the two are equivalent. (The demo retrieval in section 7–8 of the notebook does normalize embeddings.)
+- **MiniLM is an English model** evaluated on French text, so the comparison mostly shows the value of a multilingual model rather than a fair comparison of two equivalent models.
+- **Small evaluation set**: 37 questions written and labelled by one person, mostly with a single expected article, which can under-count answers spread over several articles.
+- **Duplicate chunks**: some identical passages (e.g. the same footnote repeated in several of the articles that amend other EU acts) get identical distances, so their order in the results can vary between runs.
 
----
+## Next steps
 
-##  Tech Stack
+- Normalize embeddings in the benchmark (or set ChromaDB to cosine distance) so the reported scores are true cosine similarity, then re-run the evaluation.
+- Recognise "Article premier" and separate the annexes from Article 113, then re-run the evaluation.
+- Improve chunking: enforce the size limit, add overlap, remove page headers and footers.
+- Extend the evaluation set (more questions, several expected articles per question).
+- Optionally, connect the retrieval step to a language model for answer generation (RAG).
 
-Python, pdfplumber, sentence-transformers, ChromaDB, cosine similarity
+## Tech stack
 
----
+Python, pdfplumber, Sentence-Transformers, ChromaDB, pandas, matplotlib/seaborn.
 
-##  Next steps
+## License
 
-- Improve chunking strategy (overlap / boundaries by article structure)
-- Increase the evaluation set size and add more diverse legal queries
-- Optional: connect retrieval to a language model for answer generation (RAG)
+Code: MIT (see [LICENSE](LICENSE)). The AI Act text is not included; it is available from EUR-Lex (© European Union), whose content may be reused with acknowledgement of the source.
