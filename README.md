@@ -92,18 +92,24 @@ No API key is needed: all models run locally.
 
 ## Limitations
 
-These were measured on the current code; they are known issues, not fixed yet.
+The evaluation pipeline is sound and the numbers reproduce, but the preprocessing has known gaps, measured on the current code. They are listed here rather than hidden, and the main ones are the next steps below.
 
-- **43% of the text is not indexed.** Only text after the first matched `Article <number>` line is kept. The French text starts with "Article premier", which the regex does not match, so the recitals and Article 1 (288,835 of 672,718 characters) are dropped.
-- **Annexes are labelled as Article 113.** Everything after the last article (the annexes) is attached to Article 113, which becomes 53,043 characters long (about 900 of them are the article itself).
-- **Chunk size is not enforced.** Chunks are only split after a period, so long enumerations separated by semicolons stay whole: 89 of the 704 chunks exceed 600 characters (the longest has 19,189).
-- **Chunks are truncated by the models.** Text beyond the model's maximum input length is ignored when embedding: MiniLM (256 tokens) truncates 49 chunks, MPNet (128 tokens) truncates 257 chunks, including 88 of the 89 long ones.
-- **No overlap between chunks**, so a sentence split across two chunks loses its context.
-- **PDF page headers and footers remain in the text** (e.g. `ELI: http://data.europa.eu/eli/reg/2024/1689/oj 51/144`, `JO L du 12.7.2024`): they appear in 105 chunks.
-- **The benchmark is not a true cosine similarity.** ChromaDB uses L2 distance by default. In the benchmark, MPNet embeddings are not normalized (mean norm ≈ 2.6), so ranking is by L2 distance rather than cosine. MiniLM normalizes its own outputs, so for MiniLM the two are equivalent. (The demo retrieval in section 7–8 of the notebook does normalize embeddings.)
-- **MiniLM is an English model** evaluated on French text, so the comparison mostly shows the value of a multilingual model rather than a fair comparison of two equivalent models.
-- **Small evaluation set**: 37 questions written and labelled by one person, mostly with a single expected article, which can under-count answers spread over several articles.
-- **Duplicate chunks**: some identical passages (e.g. the same footnote repeated in several of the articles that amend other EU acts) get identical distances, so their order in the results can vary between runs.
+**Document parsing**
+- The article regex misses "Article premier", so the recitals and Article 1 are not indexed (43% of the characters).
+- The annexes are attached to Article 113.
+- PDF headers and footers remain in 105 of the 704 chunks.
+
+**Chunking**
+- Chunks are split only after a period, so 89 exceed the 600-character target (up to 19,189).
+- Text beyond the model's input limit is not embedded: MPNet (128 tokens) truncates 257 chunks, MiniLM (256 tokens) 49.
+- Chunks do not overlap, and a few identical passages produce ties whose order can vary between runs.
+
+**Similarity**
+- ChromaDB uses L2 distance by default, and MPNet embeddings are not normalized in the benchmark, so its ranking is not a true cosine similarity (MiniLM normalizes its own outputs).
+
+**Evaluation**
+- 37 questions written and labelled by one person, mostly with a single expected article.
+- MiniLM is an English model evaluated on French text, so the comparison mainly shows the value of a multilingual model.
 
 ## Next steps
 
